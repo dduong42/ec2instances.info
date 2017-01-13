@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 from lxml import etree
-import urllib2
+import urllib.request
 import re
+import requests
 import json
 import locale
 
@@ -126,7 +127,7 @@ def parse_instance(tr, inst2family):
         # Are these (r4 instances currently) EBS only? Site does not specify...
         i.ebs_only = True
     else:
-        print "ERROR: Unrecognized storage spec for %s: %s" % (i.instance_type, storage)
+        print("ERROR: Unrecognized storage spec for %s: %s" % (i.instance_type, storage))
 
     i.ebs_optimized = totext(cols[10]).lower() == 'yes'
     i.network_performance = totext(cols[4])
@@ -146,7 +147,7 @@ def _rindex_family(inst2family, details):
 
 def scrape_families():
     inst2family = dict()
-    tree = etree.parse(urllib2.urlopen("http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-types.html"),
+    tree = etree.parse(urllib.request.urlopen("http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-types.html"),
                        etree.HTMLParser())
     details = tree.xpath('//div[@class="informaltable"]//table')[0]
     hdrs = details.xpath('thead/tr')[0]
@@ -164,13 +165,13 @@ def scrape_families():
 
 def scrape_instances():
     inst2family = scrape_families()
-    tree = etree.parse(urllib2.urlopen("http://aws.amazon.com/ec2/instance-types/"), etree.HTMLParser())
+    tree = etree.parse(urllib.request.urlopen("http://aws.amazon.com/ec2/instance-types/"), etree.HTMLParser())
     details = tree.xpath('//table[count(tbody/tr[1]/td)=12]')[0]
     rows = details.xpath('tbody/tr')[1:]
     assert len(rows) > 0, "Didn't find any table rows."
     current_gen = [parse_instance(r, inst2family) for r in rows]
 
-    tree = etree.parse(urllib2.urlopen("http://aws.amazon.com/ec2/previous-generation/"), etree.HTMLParser())
+    tree = etree.parse(urllib.request.urlopen("http://aws.amazon.com/ec2/previous-generation/"), etree.HTMLParser())
     details = tree.xpath('//table')[6]
     rows = details.xpath('tbody/tr')[1:]
     assert len(rows) > 0, "Didn't find any table rows."
@@ -307,7 +308,7 @@ def add_pricing_info(instances):
 
 
 def fetch_data(url):
-    content = urllib2.urlopen(url).read()
+    content = requests.get(url).content.decode('utf-8')
     try:
         pricing = json.loads(content)
     except ValueError:
@@ -321,17 +322,20 @@ def fetch_data(url):
 
 def add_eni_info(instances):
     eni_url = "http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-eni.html"
-    tree = etree.parse(urllib2.urlopen(eni_url), etree.HTMLParser())
+    tree = etree.parse(urllib.request.urlopen(eni_url), etree.HTMLParser())
     table = tree.xpath('//div[@class="informaltable"]//table')[0]
     rows = table.xpath('.//tr[./td]')
     by_type = {i.instance_type: i for i in instances}
 
     for r in rows:
-        instance_type = etree.tostring(r[0], method='text').strip()
-        max_enis = locale.atoi(etree.tostring(r[1], method='text'))
-        ip_per_eni = locale.atoi(etree.tostring(r[2], method='text'))
+        instance_type = etree.tostring(r[0], method='text')
+        instance_type = instance_type.decode('utf-8').strip()
+        max_enis = etree.tostring(r[1], method='text').decode('utf-8')
+        max_enis = locale.atoi(max_enis)
+        ip_per_eni = etree.tostring(r[2], method='text').decode('utf-8')
+        ip_per_eni = locale.atoi(ip_per_eni)
         if instance_type not in by_type:
-            print "Unknown instance type: " + instance_type
+            print("Unknown instance type: " + instance_type)
             continue
         by_type[instance_type].vpc = {
             'max_enis': max_enis,
@@ -340,7 +344,7 @@ def add_eni_info(instances):
 
 def add_ebs_info(instances):
     ebs_url = "http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/EBSOptimized.html"
-    tree = etree.parse(urllib2.urlopen(ebs_url), etree.HTMLParser())
+    tree = etree.parse(urllib.request.urlopen(ebs_url), etree.HTMLParser())
     table = tree.xpath('//div[@class="informaltable"]//table')[0]
     rows = table.xpath('tbody/tr')
     by_type = {i.instance_type: i for i in instances}
@@ -353,7 +357,7 @@ def add_ebs_info(instances):
         ebs_throughput = locale.atof(totext(cols[3]))
         ebs_iops = locale.atof(totext(cols[4]))
         if instance_type not in by_type:
-            print "Unknown instance type: " + instance_type
+            print("Unknown instance type: " + instance_type)
             continue
         by_type[instance_type].ebs_optimized_by_default = ebs_optimized_by_default
         by_type[instance_type].ebs_throughput = ebs_throughput
@@ -370,7 +374,7 @@ def add_linux_ami_info(instances):
     """
     checkmark_char = u'\u2713'
     url = "http://aws.amazon.com/amazon-linux-ami/instance-type-matrix/"
-    tree = etree.parse(urllib2.urlopen(url), etree.HTMLParser())
+    tree = etree.parse(urllib.request.urlopen(url), etree.HTMLParser())
     table = tree.xpath('//div[@class="aws-table "]/table')[0]
     rows = table.xpath('.//tr[./td]')[1:]  # ignore header
 
@@ -466,17 +470,11 @@ def add_pretty_names(instances):
 
 def scrape(data_file):
     """Scrape AWS to get instance data"""
-    print "Parsing instance types..."
     all_instances = scrape_instances()
-    print "Parsing pricing info..."
     add_pricing_info(all_instances)
-    print "Parsing ENI info..."
     add_eni_info(all_instances)
-    print "Parsing EBS info..."
     add_ebs_info(all_instances)
-    print "Parsing Linux AMI info..."
     add_linux_ami_info(all_instances)
-    print "Adding additional details..."
     add_vpconly_detail(all_instances)
     add_pretty_names(all_instances)
 
