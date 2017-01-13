@@ -88,7 +88,6 @@ def parse_prev_generation_instance(tr):
     i.network_performance = totext(cols[7])
     i.enhanced_networking = False
     i.generation = 'previous'
-    # print "Parsed %s..." % (i.instance_type)
     return i
 
 
@@ -133,7 +132,6 @@ def parse_instance(tr, inst2family):
     i.network_performance = totext(cols[4])
     i.enhanced_networking = totext(cols[11]).lower() == 'yes'
     i.generation = 'current'
-    # print "Parsed %s..." % (i.instance_type)
     return i
 
 
@@ -234,7 +232,6 @@ def add_ondemand_pricing(imap, data, platform):
                     continue
                 inst = imap[i_type]
                 inst.pricing.setdefault(region, {})
-                # print "%s/%s" % (region, i_type)
 
                 inst.pricing[region].setdefault(platform, {})
                 for col in i_spec['valueColumns']:
@@ -258,7 +255,6 @@ def add_reserved_pricing(imap, data, platform):
                 continue
             inst = imap[i_type]
             inst.pricing.setdefault(region, {})
-            # print "%s/%s" % (region, i_type)
             inst.pricing[region].setdefault(platform, {})
             inst.pricing[region][platform].setdefault('reserved', {})
 
