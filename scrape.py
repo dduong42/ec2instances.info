@@ -5,6 +5,7 @@ import re
 import requests
 import json
 import locale
+import sys
 
 
 # Following advice from https://stackoverflow.com/a/1779324/216138
@@ -468,7 +469,7 @@ def add_pretty_names(instances):
         i.pretty_name = ' '.join([b for b in bits if b])
 
 
-def scrape(data_file):
+def scrape():
     """Scrape AWS to get instance data"""
     all_instances = scrape_instances()
     add_pricing_info(all_instances)
@@ -478,12 +479,11 @@ def scrape(data_file):
     add_vpconly_detail(all_instances)
     add_pretty_names(all_instances)
 
-    with open(data_file, 'w') as f:
-        json.dump([i.to_dict() for i in all_instances],
-                  f,
-                  indent=2,
-                  separators=(',', ': '))
+    json.dump([i.to_dict() for i in all_instances],
+              sys.stdout,
+              indent=2,
+              separators=(',', ': '))
 
 
 if __name__ == '__main__':
-    scrape('www/instances.json')
+    scrape()
